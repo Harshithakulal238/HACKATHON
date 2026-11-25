@@ -1,14 +1,11 @@
+import { Link } from 'react-router-dom'
 import './App.css'
+import BrandHeader from './components/layout/BrandHeader.jsx'
 
-function App() {
+function WelcomePage() {
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <a className="brand" href="/" aria-label="Léviōsa home">
-          <span className="brand-mark" aria-hidden="true">L</span>
-          <span>Léviōsa</span>
-        </a>
-      </header>
+      <BrandHeader />
 
       <section className="welcome" aria-labelledby="welcome-title">
         <div className="welcome-content">
@@ -19,17 +16,23 @@ function App() {
           </p>
 
           <div className="welcome-actions">
-            <button className="button button-primary" type="button">
+            <Link className="button button-primary" to="/visitor/tour">
               Begin as visitor
-            </button>
-            <button className="button button-secondary" type="button">
+            </Link>
+            <Link
+              className="button button-secondary"
+              to="/curator/login"
+            >
               Curator sign in
-            </button>
+            </Link>
           </div>
+          <Link className="staff-login-link" to="/worker/login">
+            Worker sign in
+          </Link>
         </div>
       </section>
     </main>
   )
 }
 
-export default App
+export default WelcomePage
