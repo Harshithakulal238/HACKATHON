@@ -1,0 +1,40 @@
+:root {
+  --royal-maroon: #722F37;
+  --antique-gold: #B08D57;
+  --warm-cream: #F7F0E5;
+  --dark-walnut: #49352F;
+  --muted-champagne: #D8C5A5;
+  --deep-charcoal: #29201D;
+  --sans-font: Inter, 'Segoe UI', sans-serif;
+  --serif-font: 'Playfair Display', Georgia, serif;
+  font-family: var(--sans-font);
+  color: var(--deep-charcoal);
+  background: var(--warm-cream);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--warm-cream);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}

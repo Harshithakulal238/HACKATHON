@@ -101,6 +101,20 @@ Analytics represent recorded digital interactions, not independently verified vi
 | MinIO / Local Storage | Exhibit images and audio files |
 | Dijkstra + Greedy | Personalized route generation |
 
+## Backend development
+
+The Express API is in `backend/`. Copy `backend/.env.example` to `backend/.env`,
+set `DATABASE_URL` to your local PostgreSQL connection string, then run:
+
+```powershell
+cd backend
+npm install
+npm run dev
+```
+
+The health endpoint is available at `http://localhost:5000/api/health`.
+It reports API process health and does not require a live database connection.
+
 ## Architecture
 
 Visitor / Curator (React)
