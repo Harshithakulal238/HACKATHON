@@ -104,16 +104,72 @@ Analytics represent recorded digital interactions, not independently verified vi
 ## Backend development
 
 The Express API is in `backend/`. Copy `backend/.env.example` to `backend/.env`,
-set `DATABASE_URL` to your local PostgreSQL connection string, then run:
+set `DATABASE_URL` to your local PostgreSQL connection string and replace
+`JWT_SECRET` with a locally generated random secret, then run:
 
 ```powershell
 cd backend
 npm install
+npm run db:migrate
 npm run dev
 ```
 
+The Vite development server proxies `/api` to the backend at
+`http://127.0.0.1:5000`, so the frontend can call the API without a local
+cross-origin request. `frontend/.env.example` sets `VITE_API_URL=/api`.
+
 The health endpoint is available at `http://localhost:5000/api/health`.
 It reports API process health and does not require a live database connection.
+
+To apply pending SQL migrations to the database configured by `DATABASE_URL`, run:
+
+```powershell
+cd backend
+npm run db:migrate
+```
+
+Add ordered `.sql` migration files to `database/migrations/`. Applied migration
+filenames are recorded in the PostgreSQL `schema_migrations` table.
+
+The initial museum-content migration creates museums, galleries, categories,
+exhibits, floorplans, map nodes, and walking paths. Floorplans reference SVG
+files under the uploads area; viewBox dimensions and node coordinates are stored
+in the database. Curator authentication is added separately by migration
+`0002_curator_auth_schema.sql`; visitor sessions, QR data, and analytics remain
+out of scope.
+
+Curator accounts can register at `POST /api/auth/register`, log in at
+`POST /api/auth/login`, and retrieve their authenticated identity at
+`GET /api/auth/me`. Registration creates one museum for that curator. Add a
+random `JWT_SECRET` of at least 32 characters to `backend/.env` before using
+authentication. To generate one locally with Node.js:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
+```
+
+Protected curator content endpoints use the museum associated with the bearer
+token:
+
+- `GET/PATCH /api/museums/me`
+- `GET/POST /api/galleries` and `GET/PATCH/DELETE /api/galleries/:id`
+- `GET/POST /api/categories` and `GET/PATCH/DELETE /api/categories/:id`
+- `GET/POST /api/exhibits` and `GET/PATCH/DELETE /api/exhibits/:id`
+
+Send the token in `Authorization: Bearer <token>`. Museum IDs are not accepted
+from request bodies. Delete operations return a conflict if related records
+still reference the resource; they do not cascade.
+
+Gallery and category bodies use `name` and optional `description`. Exhibit
+bodies use `galleryId`, `categoryId`, `name`, `descriptionEn`, `descriptionKn`,
+`estimatedVisitMinutes`, and `isAvailable`; exhibit creation requires the
+gallery, category, name, and estimated visit time.
+
+Run backend tests after applying migrations and configuring `JWT_SECRET`:
+
+```powershell
+npm test
+```
 
 ## Architecture
 
