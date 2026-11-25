@@ -10,4 +10,5 @@ export const environment = Object.freeze({
   port,
   nodeEnv: process.env.NODE_ENV ?? 'development',
   databaseUrl: process.env.DATABASE_URL,
+  jwtSecret: process.env.JWT_SECRET,
 })

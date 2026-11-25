@@ -7,12 +7,18 @@ export function notFoundHandler(_request, response) {
 }
 
 export function errorHandler(error, _request, response, _next) {
-  console.error(error)
+  const statusCode = error.statusCode ?? error.status ?? 500
+  const isClientError = statusCode >= 400 && statusCode < 500
 
-  response.status(error.statusCode ?? 500).json({
+  if (!isClientError) {
+    console.error(error)
+  }
+
+  response.status(statusCode).json({
     error: {
-      message:
-        error.statusCode && error.statusCode < 500
+      message: isClientError
+        ? error.message
+        : statusCode === 503
           ? error.message
           : 'An unexpected server error occurred.',
     },
