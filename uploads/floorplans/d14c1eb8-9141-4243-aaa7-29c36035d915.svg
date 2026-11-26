@@ -1,0 +1,399 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 840" width="1200" height="840" role="img" aria-labelledby="map-title map-desc">
+  <title id="map-title">Léviōsa Museum Interactive Floor Map</title>
+  <desc id="map-desc">Schematic architectural floorplan of the Léviōsa Museum featuring Entrance, Exit, Galleries A through F, Junctions J1 through J6, and connected walking corridors.</desc>
+
+  <defs>
+    
+    <pattern id="hall-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.8" fill="#D6D0C4" opacity="0.65" />
+    </pattern>
+
+    
+    <filter id="room-shadow" x="-4%" y="-4%" width="108%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#1E293B" flood-opacity="0.08" />
+    </filter>
+
+    <style>
+      .bg-canvas { fill: #F8F6F0; }
+      .outer-wall { fill: #EFECE4; stroke: #2B343B; stroke-width: 5; }
+      .inner-partition { stroke: #3A4650; stroke-width: 2; fill: none; }
+
+      /* Corridor styling: wide walkway bed + navigable path line for route overlays */
+      .corridor-bed {
+        fill: none;
+        stroke: #E2DDD2;
+        stroke-width: 28;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .corridor-border {
+        fill: none;
+        stroke: #C8C1B2;
+        stroke-width: 30;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        opacity: 0.55;
+      }
+      .corridor-path {
+        fill: none;
+        stroke: #64748B;
+        stroke-width: 3;
+        stroke-dasharray: 7 6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* Gallery blocks */
+      .gallery-room {
+        fill: #FCFBF7;
+        stroke: #2B343B;
+        stroke-width: 2.25;
+        filter: url(#room-shadow);
+      }
+      .gallery-room-alt {
+        fill: #F6F3EB;
+        stroke: #2B343B;
+        stroke-width: 2.25;
+        filter: url(#room-shadow);
+      }
+      .gallery-badge {
+        fill: #2B343B;
+      }
+      .gallery-badge-text {
+        fill: #FFFFFF;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+      .gallery-title {
+        fill: #1E293B;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .gallery-subtitle {
+        fill: #475569;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .exhibit-item {
+        fill: #334155;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 11.5px;
+        font-weight: 400;
+      }
+
+      /* Junctions */
+      .junction-outer {
+        fill: #FFFFFF;
+        stroke: #2B343B;
+        stroke-width: 2.5;
+      }
+      .junction-inner {
+        fill: #0F766E;
+      }
+      .junction-label {
+        fill: #0F172A;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        text-anchor: middle;
+      }
+
+      /* Entrance &amp; Exit */
+      .portal-entrance-box {
+        fill: #E6F4F1;
+        stroke: #0F766E;
+        stroke-width: 2.5;
+      }
+      .portal-exit-box {
+        fill: #FEF3E6;
+        stroke: #B45309;
+        stroke-width: 2.5;
+      }
+      .portal-title-entrance {
+        fill: #0F766E;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+      .portal-title-exit {
+        fill: #B45309;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+
+      /* Header &amp; Legend */
+      .header-title {
+        fill: #1E293B;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .header-sub {
+        fill: #64748B;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .legend-text {
+        fill: #334155;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 11.5px;
+        font-weight: 500;
+        dominant-baseline: central;
+      }
+    </style>
+  </defs>
+
+  
+  <rect x="0" y="0" width="1200" height="840" class="bg-canvas" />
+
+  
+  <g id="map-header">
+    <text x="60" y="36" class="header-title">LÉVIŌSA MUSEUM — FLOOR MAP</text>
+    <text x="60" y="55" class="header-sub">Schematic Wayfinding &amp; Graph Navigation Layout (Galleries A–F · Junctions J1–J6)</text>
+  </g>
+
+  
+  <g id="museum-structure">
+    <rect x="60" y="70" width="1080" height="725" rx="14" class="outer-wall" />
+    <rect x="62.5" y="72.5" width="1075" height="720" rx="12" fill="url(#hall-grid)" />
+
+    
+    <g id="central-atrium" opacity="0.75">
+      <circle cx="600" cy="440" r="56" fill="#F2EFE7" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4" />
+      <text x="600" y="436" text-anchor="middle" fill="#64748B" font-family="system-ui, sans-serif" font-size="11" font-weight="600" letter-spacing="1.2">ATRIUM</text>
+      <text x="600" y="451" text-anchor="middle" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="10">Central Concourse</text>
+    </g>
+  </g>
+
+  
+  <g id="corridor-beds">
+    
+    <line x1="360" y1="735" x2="360" y2="660" class="corridor-border" />
+    <line x1="360" y1="735" x2="360" y2="660" class="corridor-bed" />
+
+    <line x1="840" y1="660" x2="840" y2="735" class="corridor-border" />
+    <line x1="840" y1="660" x2="840" y2="735" class="corridor-bed" />
+
+    
+    <line x1="360" y1="660" x2="840" y2="660" class="corridor-border" />
+    <line x1="360" y1="660" x2="840" y2="660" class="corridor-bed" />
+
+    
+    <line x1="360" y1="660" x2="360" y2="440" class="corridor-border" />
+    <line x1="360" y1="660" x2="360" y2="440" class="corridor-bed" />
+
+    <line x1="840" y1="660" x2="840" y2="440" class="corridor-border" />
+    <line x1="840" y1="660" x2="840" y2="440" class="corridor-bed" />
+
+    
+    <line x1="360" y1="440" x2="840" y2="440" class="corridor-border" />
+    <line x1="360" y1="440" x2="840" y2="440" class="corridor-bed" />
+
+    
+    <polyline points="360,440 360,230 480,230" class="corridor-border" />
+    <polyline points="360,440 360,230 480,230" class="corridor-bed" />
+
+    <polyline points="720,230 840,230 840,440" class="corridor-border" />
+    <polyline points="720,230 840,230 840,440" class="corridor-bed" />
+
+    
+    <line x1="480" y1="230" x2="720" y2="230" class="corridor-border" />
+    <line x1="480" y1="230" x2="720" y2="230" class="corridor-bed" />
+
+    
+    
+    <line x1="295" y1="550" x2="360" y2="550" class="corridor-border" />
+    <line x1="295" y1="550" x2="360" y2="550" class="corridor-bed" />
+
+    
+    <line x1="295" y1="335" x2="360" y2="335" class="corridor-border" />
+    <line x1="295" y1="335" x2="360" y2="335" class="corridor-bed" />
+
+    
+    <line x1="480" y1="195" x2="480" y2="230" class="corridor-border" />
+    <line x1="480" y1="195" x2="480" y2="230" class="corridor-bed" />
+
+    
+    <line x1="720" y1="195" x2="720" y2="230" class="corridor-border" />
+    <line x1="720" y1="195" x2="720" y2="230" class="corridor-bed" />
+
+    
+    <line x1="840" y1="550" x2="905" y2="550" class="corridor-border" />
+    <line x1="840" y1="550" x2="905" y2="550" class="corridor-bed" />
+
+    
+    <line x1="840" y1="335" x2="905" y2="335" class="corridor-border" />
+    <line x1="840" y1="335" x2="905" y2="335" class="corridor-bed" />
+  </g>
+
+  
+  <g id="corridor-paths">
+    
+    <path id="path-entrance-J1" d="M 360 735 L 360 660" class="corridor-path" />
+    <path id="path-J2-exit" d="M 840 660 L 840 735" class="corridor-path" />
+
+    
+    <path id="path-J1-J2" d="M 360 660 L 840 660" class="corridor-path" />
+    <path id="path-J1-J3" d="M 360 660 L 360 440" class="corridor-path" />
+    <path id="path-J2-J4" d="M 840 660 L 840 440" class="corridor-path" />
+    <path id="path-J3-J4" d="M 360 440 L 840 440" class="corridor-path" />
+    <path id="path-J3-J5" d="M 360 440 L 360 230 L 480 230" class="corridor-path" />
+    <path id="path-J4-J6" d="M 840 440 L 840 230 L 720 230" class="corridor-path" />
+    <path id="path-J5-J6" d="M 480 230 L 720 230" class="corridor-path" />
+
+    
+    <path id="path-J1-J3-A" d="M 295 550 L 360 550" class="corridor-path" />
+    <path id="path-J3-J5-D" d="M 295 335 L 360 335" class="corridor-path" />
+    <path id="path-J5-B" d="M 480 195 L 480 230" class="corridor-path" />
+    <path id="path-J6-E" d="M 720 195 L 720 230" class="corridor-path" />
+    <path id="path-J2-J4-C" d="M 840 550 L 905 550" class="corridor-path" />
+    <path id="path-J4-J6-F" d="M 840 335 L 905 335" class="corridor-path" />
+  </g>
+
+  
+  <g id="route-highlight-layer" pointer-events="none"></g>
+
+  
+  <g id="galleries">
+    
+    <g id="gallery-A">
+      <rect x="95" y="495" width="200" height="110" rx="8" class="gallery-room" />
+      <rect x="111" y="510" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="124" y="522" class="gallery-badge-text">A</text>
+      <text x="145" y="527" class="gallery-title">Sculptures &amp; Statues</text>
+      <text x="111" y="553" class="gallery-subtitle">Exhibits:</text>
+      <text x="111" y="570" class="exhibit-item">• Nataraja Bronze Sculpture</text>
+      <text x="111" y="586" class="exhibit-item">• Buddha Stone Statue</text>
+    </g>
+
+    
+    <g id="gallery-D">
+      <rect x="95" y="280" width="200" height="110" rx="8" class="gallery-room-alt" />
+      <rect x="111" y="295" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="124" y="307" class="gallery-badge-text">D</text>
+      <text x="145" y="312" class="gallery-title">Stamps &amp; Seals</text>
+      <text x="111" y="338" class="gallery-subtitle">Exhibits:</text>
+      <text x="111" y="355" class="exhibit-item">• Indus Valley Unicorn Seal</text>
+      <text x="111" y="371" class="exhibit-item">• Royal Copper Seal</text>
+    </g>
+
+    
+    <g id="gallery-B">
+      <rect x="370" y="92" width="220" height="103" rx="8" class="gallery-room" />
+      <rect x="386" y="105" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="399" y="117" class="gallery-badge-text">B</text>
+      <text x="420" y="122" class="gallery-title">Jewelry &amp; Ornaments</text>
+      <text x="386" y="147" class="exhibit-item">• Traditional Gold Temple Necklace</text>
+      <text x="386" y="165" class="exhibit-item">• Traditional Silver Anklets</text>
+    </g>
+
+    
+    <g id="gallery-E">
+      <rect x="610" y="92" width="220" height="103" rx="8" class="gallery-room-alt" />
+      <rect x="626" y="105" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="639" y="117" class="gallery-badge-text">E</text>
+      <text x="660" y="122" class="gallery-title">Fossils &amp; Minerals</text>
+      <text x="626" y="147" class="exhibit-item">• Ammonite Fossil</text>
+      <text x="626" y="165" class="exhibit-item">• Quartz Crystal</text>
+    </g>
+
+    
+    <g id="gallery-C">
+      <rect x="905" y="495" width="200" height="110" rx="8" class="gallery-room" />
+      <rect x="921" y="510" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="934" y="522" class="gallery-badge-text">C</text>
+      <text x="955" y="527" class="gallery-title">Musical Instruments</text>
+      <text x="921" y="553" class="gallery-subtitle">Exhibits:</text>
+      <text x="921" y="570" class="exhibit-item">• Saraswati Veena</text>
+      <text x="921" y="586" class="exhibit-item">• Mridangam</text>
+    </g>
+
+    
+    <g id="gallery-F">
+      <rect x="905" y="280" width="200" height="110" rx="8" class="gallery-room-alt" />
+      <rect x="921" y="295" width="26" height="24" rx="5" class="gallery-badge" />
+      <text x="934" y="307" class="gallery-badge-text">F</text>
+      <text x="955" y="312" class="gallery-title">Vehicles &amp; Transport</text>
+      <text x="921" y="338" class="gallery-subtitle">Exhibits:</text>
+      <text x="921" y="355" class="exhibit-item">• Traditional Bullock Cart</text>
+      <text x="921" y="371" class="exhibit-item">• Vintage Motorcycle</text>
+    </g>
+  </g>
+
+  
+  <g id="junctions">
+    <g id="junction-J1">
+      <circle cx="360" cy="660" r="11" class="junction-outer" />
+      <circle cx="360" cy="660" r="4.5" class="junction-inner" />
+      <text x="335" y="664" text-anchor="end" class="junction-label">J1</text>
+    </g>
+
+    <g id="junction-J2">
+      <circle cx="840" cy="660" r="11" class="junction-outer" />
+      <circle cx="840" cy="660" r="4.5" class="junction-inner" />
+      <text x="865" y="664" text-anchor="start" class="junction-label">J2</text>
+    </g>
+
+    <g id="junction-J3">
+      <circle cx="360" cy="440" r="11" class="junction-outer" />
+      <circle cx="360" cy="440" r="4.5" class="junction-inner" />
+      <text x="335" y="444" text-anchor="end" class="junction-label">J3</text>
+    </g>
+
+    <g id="junction-J4">
+      <circle cx="840" cy="440" r="11" class="junction-outer" />
+      <circle cx="840" cy="440" r="4.5" class="junction-inner" />
+      <text x="865" y="444" text-anchor="start" class="junction-label">J4</text>
+    </g>
+
+    <g id="junction-J5">
+      <circle cx="480" cy="230" r="11" class="junction-outer" />
+      <circle cx="480" cy="230" r="4.5" class="junction-inner" />
+      <text x="480" y="254" class="junction-label">J5</text>
+    </g>
+
+    <g id="junction-J6">
+      <circle cx="720" cy="230" r="11" class="junction-outer" />
+      <circle cx="720" cy="230" r="4.5" class="junction-inner" />
+      <text x="720" y="254" class="junction-label">J6</text>
+    </g>
+  </g>
+
+  
+  <g id="portals">
+    <g id="entrance">
+      <rect x="295" y="735" width="130" height="38" rx="8" class="portal-entrance-box" />
+      <text x="360" y="754" class="portal-title-entrance">▲ ENTRANCE</text>
+    </g>
+
+    <g id="exit">
+      <rect x="775" y="735" width="130" height="38" rx="8" class="portal-exit-box" />
+      <text x="840" y="754" class="portal-title-exit">EXIT ▲</text>
+    </g>
+  </g>
+
+  
+  <g id="map-legend" transform="translate(455, 742)">
+    <rect x="0" y="0" width="290" height="32" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2" />
+    <line x1="14" y1="16" x2="40" y2="16" class="corridor-path" />
+    <text x="46" y="16" class="legend-text">Corridor</text>
+
+    <circle cx="112" cy="16" r="6" class="junction-outer" />
+    <circle cx="112" cy="16" r="2.5" class="junction-inner" />
+    <text x="124" y="16" class="legend-text">Junction</text>
+
+    <rect x="184" y="9" width="14" height="14" rx="3" fill="#FCFBF7" stroke="#2B343B" stroke-width="1.5" />
+    <text x="204" y="16" class="legend-text">Gallery</text>
+  </g>
+</svg>

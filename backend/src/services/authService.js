@@ -6,7 +6,7 @@ import { environment } from '../config/environment.js'
 const passwordRounds = 12
 const passwordMinimumLength = 12
 const passwordMaximumBytes = 72
-const tokenLifetime = '15m'
+const tokenLifetime = '45m'
 const tokenIssuer = 'leviosa-api'
 const tokenAudience = 'leviosa-client'
 

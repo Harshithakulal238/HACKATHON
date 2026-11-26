@@ -103,6 +103,16 @@ function CuratorCollection() {
     runAction(() => remove(accessToken), 'Item deleted.')
   }
 
+  function removeExhibit(exhibit) {
+    if (!window.confirm(
+      `Remove "${exhibit.name}" from active maps and future tours? Past visitor history will be preserved.`,
+    )) return
+    runAction(
+      () => deleteExhibit(accessToken, exhibit.id),
+      'Exhibit removed from active maps and future tours. Visitor history was preserved.',
+    )
+  }
+
   async function changeAvailability(exhibit) {
     await runAction(
       () => updateExhibit(accessToken, exhibit.id, { isAvailable: !exhibit.isAvailable }),
@@ -334,13 +344,10 @@ function CuratorCollection() {
                   </button>
                   <button
                     className="workspace-button-danger"
-                    onClick={() => removeResource(
-                      () => deleteExhibit(accessToken, exhibit.id),
-                      exhibit.name,
-                    )}
+                    onClick={() => removeExhibit(exhibit)}
                     type="button"
                   >
-                    Delete exhibit
+                    Remove exhibit
                   </button>
                   <QRCodeImage value={exhibit.shortCode} label={`QR code for ${exhibit.name}`} size={128} />
                 </div>

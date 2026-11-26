@@ -16,6 +16,10 @@ export function listTourCategories(token) {
   return apiRequest('/worker/sessions/categories', { token })
 }
 
+export function listWorkerFloorplans(token) {
+  return apiRequest('/worker/sessions/floorplans', { token })
+}
+
 export function startVisitorTour(routeToken) {
   return apiRequest('/visitor/sessions/start', {
     method: 'POST',

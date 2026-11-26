@@ -16,7 +16,7 @@ function WelcomePage() {
           </p>
 
           <div className="welcome-actions">
-            <Link className="button button-primary" to="/visitor/tour">
+            <Link className="button button-primary" to="/visitor/tour?scan=1">
               Begin as visitor
             </Link>
             <Link

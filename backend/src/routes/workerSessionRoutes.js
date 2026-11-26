@@ -7,6 +7,7 @@ const workerSessionRoutes = Router()
 
 workerSessionRoutes.use(authenticate, requireRole('worker'))
 workerSessionRoutes.get('/categories', workerSessionController.categories)
+workerSessionRoutes.get('/floorplans', workerSessionController.floorplans)
 workerSessionRoutes.get('/', workerSessionController.list)
 workerSessionRoutes.post('/', workerSessionController.create)
 

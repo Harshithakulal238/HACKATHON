@@ -88,6 +88,16 @@ export function uploadFloorplanSvg(token, file) {
   })
 }
 
+export function replaceFloorplanSvg(token, id, file) {
+  const body = new FormData()
+  body.append('file', file)
+  return apiRequest(`/maps/floorplans/${id}/svg`, {
+    method: 'PATCH',
+    token,
+    body,
+  })
+}
+
 export function createFloorplan(token, details) {
   return apiRequest('/maps/floorplans', { method: 'POST', token, body: details })
 }

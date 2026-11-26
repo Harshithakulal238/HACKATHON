@@ -37,8 +37,12 @@ function TourDashboard() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const queryToken = searchParams.get('token')
+  const isFreshScan = searchParams.get('scan') === '1'
   const [routeToken, setRouteToken] = useState(
-    () => queryToken || sessionStorage.getItem(visitorTokenKey) || '',
+    () =>
+      queryToken ||
+      (!isFreshScan ? sessionStorage.getItem(visitorTokenKey) : '') ||
+      '',
   )
   const [manualToken, setManualToken] = useState('')
   const [tour, setTour] = useState(null)
@@ -161,6 +165,7 @@ function TourDashboard() {
     }
     setRouteToken(token)
     sessionStorage.setItem(visitorTokenKey, token)
+    navigate('/visitor/tour', { replace: true })
     setManualToken('')
     setError('')
     if (tour?.session.status === 'ready') {
@@ -360,6 +365,8 @@ function TourDashboard() {
               setManualToken(token)
               setScannerOpen(false)
               setRouteToken(token)
+              sessionStorage.setItem(visitorTokenKey, token)
+              navigate('/visitor/tour', { replace: true })
               setNotice('Route QR received. Review your route and start the tour.')
             }} />
             <p className="muted-copy">Camera access is optional. You can enter the route ticket value manually.</p>
@@ -511,18 +518,17 @@ function RouteList({ route }) {
 
 function MuseumMap({ map }) {
   const nodesById = new Map(map.nodes.map((node) => [node.id, node]))
-  const routeNodes = []
-  for (const stop of map.route.stops) {
-    const segment = stop.pathNodeIds ?? []
-    routeNodes.push(
-      ...(routeNodes.at(-1) === segment[0] ? segment.slice(1) : segment),
+  const arrivedNodeIds = new Set(
+    map.route.stops
+      .filter((stop) => stop.status === 'arrived')
+      .map((stop) => stop.nodeId),
+  )
+  const routeSegments = map.route.stops
+    .map((stop) => (stop.pathNodeIds ?? []).map((id) => nodesById.get(id)))
+    .filter(
+      (segment) =>
+        segment.length > 1 && segment.every((node) => node !== undefined),
     )
-  }
-  const routePoints = routeNodes
-    .map((id) => nodesById.get(id))
-    .filter(Boolean)
-    .map((node) => `${node.xCoordinate},${node.yCoordinate}`)
-    .join(' ')
 
   return (
     <div className="map-canvas">
@@ -532,18 +538,30 @@ function MuseumMap({ map }) {
         viewBox={`0 0 ${map.floorplan.viewBoxWidth} ${map.floorplan.viewBoxHeight}`}
       >
         <image href={map.floorplan.svgAssetPath} height={map.floorplan.viewBoxHeight} width={map.floorplan.viewBoxWidth} />
-        {map.paths.map((path) => {
+        {map.paths.filter((path) => !path.isArchived).map((path) => {
           const from = nodesById.get(path.fromNodeId)
           const to = nodesById.get(path.toNodeId)
           return from && to ? <line className="map-path" key={path.id} x1={from.xCoordinate} x2={to.xCoordinate} y1={from.yCoordinate} y2={to.yCoordinate} /> : null
         })}
-        {routePoints ? <polyline fill="none" points={routePoints} stroke="#722F37" strokeWidth={Math.max(1, Number(map.floorplan.viewBoxWidth) / 120)} /> : null}
-        {map.nodes.map((node) => (
+        {routeSegments.map((segment, index) => (
+          <polyline
+            fill="none"
+            key={`route-segment-${index}`}
+            points={segment
+              .map((node) => `${node.xCoordinate},${node.yCoordinate}`)
+              .join(' ')}
+            stroke="#722F37"
+            strokeWidth={Math.max(1, Number(map.floorplan.viewBoxWidth) / 120)}
+          />
+        ))}
+        {map.nodes
+          .filter((node) => !node.isArchived || arrivedNodeIds.has(node.id))
+          .map((node) => (
           <g key={node.id}>
             <circle className="map-marker" cx={node.xCoordinate} cy={node.yCoordinate} r={Math.max(3, Number(map.floorplan.viewBoxWidth) / 100)} />
             <text fill="#29201D" fontSize={Math.max(4, Number(map.floorplan.viewBoxWidth) / 80)} x={Number(node.xCoordinate) + 4} y={Number(node.yCoordinate) - 4}>{node.label || node.nodeType}</text>
           </g>
-        ))}
+          ))}
       </svg>
     </div>
   )

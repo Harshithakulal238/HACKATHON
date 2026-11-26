@@ -61,5 +61,9 @@ export async function updateMedia(request, response) {
 
 export async function remove(request, response) {
   await deleteExhibit(request.user.museumId, request.params.id)
+  await recalculateForUnavailableExhibit(
+    request.user.museumId,
+    request.params.id,
+  )
   response.status(204).send()
 }

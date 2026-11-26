@@ -164,7 +164,9 @@ function validatePath(input, partial = false) {
 
 async function assertFloorplan(museumId, floorplanId) {
   const result = await databasePool.query(
-    `SELECT id::text AS id, svg_viewbox_width AS "viewBoxWidth",
+    `SELECT id::text AS id, name, floor_label AS "floorLabel",
+            svg_asset_path AS "svgAssetPath",
+            svg_viewbox_width AS "viewBoxWidth",
             svg_viewbox_height AS "viewBoxHeight"
      FROM public.floorplans
      WHERE id = $1 AND museum_id = $2`,
@@ -199,7 +201,7 @@ export async function getFloorplan(museumId, id) {
               node_type AS "nodeType", label,
               x_coordinate AS "xCoordinate", y_coordinate AS "yCoordinate"
        FROM public.map_nodes
-       WHERE floorplan_id = $1
+       WHERE floorplan_id = $1 AND archived_at IS NULL
        ORDER BY id`,
       [floorplanId],
     ),
@@ -209,7 +211,7 @@ export async function getFloorplan(museumId, id) {
               estimated_walking_seconds AS "estimatedWalkingSeconds",
               is_bidirectional AS "isBidirectional"
        FROM public.walking_paths
-       WHERE floorplan_id = $1
+       WHERE floorplan_id = $1 AND archived_at IS NULL
        ORDER BY id`,
       [floorplanId],
     ),
@@ -219,6 +221,47 @@ export async function getFloorplan(museumId, id) {
     nodes: nodeResult.rows,
     paths: pathResult.rows,
   }
+}
+
+export async function replaceFloorplanSvg(museumId, id, input) {
+  const floorplanId = validateId(id, 'id')
+  validateObject(input, ['svgAssetPath', 'viewBoxWidth', 'viewBoxHeight'])
+  const svgAssetPath = validateText(input.svgAssetPath, 'svgAssetPath')
+  const viewBoxWidth = validateCoordinate(input.viewBoxWidth, 'viewBoxWidth')
+  const viewBoxHeight = validateCoordinate(input.viewBoxHeight, 'viewBoxHeight')
+  if (
+    !svgAssetPath.startsWith('/uploads/floorplans/') ||
+    viewBoxWidth <= 0 ||
+    viewBoxHeight <= 0
+  ) {
+    throw createHttpError(400, 'Provide a valid uploaded SVG and viewBox size.')
+  }
+
+  const existing = await assertFloorplan(museumId, floorplanId)
+  if (
+    Number(existing.viewBoxWidth) !== viewBoxWidth ||
+    Number(existing.viewBoxHeight) !== viewBoxHeight
+  ) {
+    throw createHttpError(
+      400,
+      'The replacement SVG must use the existing floorplan viewBox dimensions so map markers stay aligned.',
+    )
+  }
+
+  const result = await databasePool.query(
+    `UPDATE public.floorplans
+     SET svg_asset_path = $1
+     WHERE id = $2 AND museum_id = $3
+     RETURNING id::text AS id, name, floor_label AS "floorLabel",
+               svg_asset_path AS "svgAssetPath",
+               svg_viewbox_width AS "viewBoxWidth",
+               svg_viewbox_height AS "viewBoxHeight"`,
+    [svgAssetPath, floorplanId, museumId],
+  )
+  if (!result.rows[0]) {
+    throw createHttpError(404, 'Floorplan not found.')
+  }
+  return result.rows[0]
 }
 
 export async function createFloorplan(museumId, input) {
@@ -260,7 +303,8 @@ export async function createMapNode(museumId, floorplanId, input) {
   }
   if (node.exhibitId) {
     const exhibit = await databasePool.query(
-      'SELECT 1 FROM public.exhibits WHERE id = $1 AND museum_id = $2',
+      `SELECT 1 FROM public.exhibits
+       WHERE id = $1 AND museum_id = $2 AND archived_at IS NULL`,
       [node.exhibitId, museumId],
     )
     if (!exhibit.rows[0]) {
@@ -302,7 +346,8 @@ export async function updateMapNode(museumId, floorplanId, id, input) {
     `SELECT exhibit_id::text AS "exhibitId", node_type AS "nodeType",
             x_coordinate AS "xCoordinate", y_coordinate AS "yCoordinate"
      FROM public.map_nodes
-     WHERE id = $1 AND floorplan_id = $2 AND museum_id = $3`,
+     WHERE id = $1 AND floorplan_id = $2 AND museum_id = $3
+       AND archived_at IS NULL`,
     [nodeId, floorplanId, museumId],
   )
   const existing = existingResult.rows[0]
@@ -329,7 +374,8 @@ export async function updateMapNode(museumId, floorplanId, id, input) {
   }
   if (next.exhibitId) {
     const exhibit = await databasePool.query(
-      'SELECT 1 FROM public.exhibits WHERE id = $1 AND museum_id = $2',
+      `SELECT 1 FROM public.exhibits
+       WHERE id = $1 AND museum_id = $2 AND archived_at IS NULL`,
       [next.exhibitId, museumId],
     )
     if (!exhibit.rows[0]) {
@@ -370,6 +416,7 @@ export async function deleteMapNode(museumId, floorplanId, id) {
     const result = await databasePool.query(
       `DELETE FROM public.map_nodes
        WHERE id = $1 AND floorplan_id = $2 AND museum_id = $3
+         AND archived_at IS NULL
        RETURNING id`,
       [nodeId, floorplanId, museumId],
     )
@@ -385,7 +432,8 @@ async function assertPathNodes(floorplanId, fromNodeId, toNodeId) {
   const result = await databasePool.query(
     `SELECT COUNT(*)::integer AS count
      FROM public.map_nodes
-     WHERE floorplan_id = $1 AND id = ANY($2::bigint[])`,
+     WHERE floorplan_id = $1 AND id = ANY($2::bigint[])
+       AND archived_at IS NULL`,
     [floorplanId, [fromNodeId, toNodeId]],
   )
   if (result.rows[0].count !== 2) {
@@ -432,7 +480,7 @@ export async function updateWalkingPath(museumId, floorplanId, id, input) {
             estimated_walking_seconds AS "estimatedWalkingSeconds",
             is_bidirectional AS "isBidirectional"
      FROM public.walking_paths
-     WHERE id = $1 AND floorplan_id = $2`,
+     WHERE id = $1 AND floorplan_id = $2 AND archived_at IS NULL`,
     [pathId, floorplanId],
   )
   const existing = existingResult.rows[0]
@@ -449,7 +497,7 @@ export async function updateWalkingPath(museumId, floorplanId, id, input) {
       `UPDATE public.walking_paths
        SET from_node_id = $1, to_node_id = $2,
            estimated_walking_seconds = $3, is_bidirectional = $4
-       WHERE id = $5 AND floorplan_id = $6
+       WHERE id = $5 AND floorplan_id = $6 AND archived_at IS NULL
        RETURNING id::text AS id, from_node_id::text AS "fromNodeId",
                  to_node_id::text AS "toNodeId",
                  estimated_walking_seconds AS "estimatedWalkingSeconds",
@@ -473,7 +521,9 @@ export async function deleteWalkingPath(museumId, floorplanId, id) {
   await assertFloorplan(museumId, floorplanId)
   const pathId = validateId(id, 'id')
   const result = await databasePool.query(
-    'DELETE FROM public.walking_paths WHERE id = $1 AND floorplan_id = $2 RETURNING id',
+    `DELETE FROM public.walking_paths
+     WHERE id = $1 AND floorplan_id = $2 AND archived_at IS NULL
+     RETURNING id`,
     [pathId, floorplanId],
   )
   if (!result.rows[0]) {

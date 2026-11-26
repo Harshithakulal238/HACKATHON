@@ -9,6 +9,7 @@ import {
   getFloorplan,
   listExhibits,
   listFloorplans,
+  replaceFloorplanSvg,
   uploadFloorplanSvg,
 } from '../../services/workspaceService.js'
 
@@ -21,6 +22,7 @@ function CuratorMapEditor() {
   const [mapName, setMapName] = useState('')
   const [floorLabel, setFloorLabel] = useState('')
   const [svgFile, setSvgFile] = useState(null)
+  const [replacementSvgFile, setReplacementSvgFile] = useState(null)
   const [nodeType, setNodeType] = useState('waypoint')
   const [exhibitId, setExhibitId] = useState('')
   const [nodeLabel, setNodeLabel] = useState('')
@@ -93,6 +95,28 @@ function CuratorMapEditor() {
       setFloorplan(result.floorplan)
     } catch (requestError) {
       setError(requestError.message)
+    }
+  }
+
+  async function replaceBackground(event) {
+    event.preventDefault()
+    if (!floorplan || !replacementSvgFile) {
+      setError('Choose an SVG floorplan to upload.')
+      return
+    }
+    const form = event.currentTarget
+    setError('')
+    setBusy(true)
+    try {
+      await replaceFloorplanSvg(accessToken, floorplan.id, replacementSvgFile)
+      setReplacementSvgFile(null)
+      form.reset()
+      setNotice('Floorplan background replaced. Existing markers and paths were kept.')
+      await refreshFloorplans()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -206,6 +230,28 @@ function CuratorMapEditor() {
               {floorplans.map((item) => <option key={item.id} value={item.id}>{item.name}{item.floorLabel ? ` — ${item.floorLabel}` : ''}</option>)}
             </select>
           </label>
+          {floorplan ? (
+            <section className="workspace-panel">
+              <h2>Replace floorplan background</h2>
+              <p className="muted-copy">
+                Use an SVG with viewBox 0 0 {floorplan.viewBoxWidth} {floorplan.viewBoxHeight} to keep existing markers and paths aligned.
+              </p>
+              <form className="workspace-form" onSubmit={replaceBackground}>
+                <label>
+                  Replacement SVG
+                  <input
+                    accept=".svg,image/svg+xml"
+                    onChange={(event) => setReplacementSvgFile(event.target.files?.[0] ?? null)}
+                    required
+                    type="file"
+                  />
+                </label>
+                <button className="workspace-button" disabled={busy} type="submit">
+                  Replace background
+                </button>
+              </form>
+            </section>
+          ) : null}
           {floorplan ? (
             <div className="workspace-grid">
               <section className="workspace-panel">

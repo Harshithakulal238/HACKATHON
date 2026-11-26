@@ -294,6 +294,6 @@ test('curator content APIs validate input and isolate all records by museum', as
     token: firstCurator.accessToken,
     method: 'DELETE',
   })
-  assert.equal(galleryDelete.status, 204)
-  assert.equal(categoryDelete.status, 204)
+  assert.equal(galleryDelete.status, 409)
+  assert.equal(categoryDelete.status, 409)
 })

@@ -123,7 +123,7 @@ async function getVisitorView(client, sessionId) {
 }
 
 function validateSessionRequest(input) {
-  validateObject(input, ['interests', 'availableMinutes'])
+  validateObject(input, ['interests', 'availableMinutes', 'floorplanId'])
   if (!Array.isArray(input.interests) || input.interests.length === 0) {
     throw createHttpError(400, 'Select at least one visitor interest.')
   }
@@ -135,10 +135,14 @@ function validateSessionRequest(input) {
     input.availableMinutes,
     'availableMinutes',
   )
+  const floorplanId =
+    input.floorplanId === undefined
+      ? undefined
+      : validateId(input.floorplanId, 'floorplanId')
   if (availableMinutes > 480) {
     throw createHttpError(400, 'availableMinutes must not exceed 480.')
   }
-  return { interests, availableMinutes }
+  return { interests, availableMinutes, floorplanId }
 }
 
 export async function createVisitorSession(museumId, workerUserId, input) {
@@ -160,16 +164,29 @@ export async function createVisitorSession(museumId, workerUserId, input) {
       )
     }
 
-    const floorplanResult = await client.query(
-      `SELECT id::text AS id
-       FROM public.floorplans
-       WHERE museum_id = $1
-       ORDER BY id DESC
-       LIMIT 1`,
-      [museumId],
-    )
+    const floorplanResult = request.floorplanId
+      ? await client.query(
+          `SELECT id::text AS id
+           FROM public.floorplans
+           WHERE museum_id = $1 AND id = $2`,
+          [museumId, request.floorplanId],
+        )
+      : await client.query(
+          `SELECT id::text AS id
+           FROM public.floorplans
+           WHERE museum_id = $1
+           ORDER BY id DESC
+           LIMIT 1`,
+          [museumId],
+        )
     const floorplanId = floorplanResult.rows[0]?.id
     if (!floorplanId) {
+      if (request.floorplanId) {
+        throw createHttpError(
+          400,
+          'floorplanId must belong to your museum.',
+        )
+      }
       throw createHttpError(409, 'Create a floorplan before starting a tour.')
     }
     const graphData = await loadFloorplanGraph(client, museumId, floorplanId)
@@ -267,6 +284,25 @@ export async function startVisitorSession(token) {
       throw createHttpError(401, 'This visitor route token is no longer active.')
     }
     if (session.status === 'ready') {
+      const current = await getSessionRow(client, session.id)
+      const archivedStop = await client.query(
+        `SELECT 1
+         FROM public.route_stops AS stop
+         JOIN public.visitor_routes AS route ON route.id = stop.route_id
+         JOIN public.exhibits AS exhibit ON exhibit.id = stop.exhibit_id
+         WHERE route.session_id = $1
+           AND route.version = $2
+           AND stop.status = 'pending'
+           AND exhibit.archived_at IS NOT NULL
+         LIMIT 1`,
+        [current.id, current.routeVersion],
+      )
+      if (archivedStop.rows[0]) {
+        await createRouteRevision(client, current, {
+          reason: 'unavailable',
+          remainingSeconds: current.allocatedMinutes * 60,
+        })
+      }
       await client.query(
         `UPDATE public.visitor_sessions
          SET status = 'active', started_at = CURRENT_TIMESTAMP
@@ -314,22 +350,43 @@ export async function getVisitorMap(sessionId) {
       [session.floorplanId],
     )
     const nodeResult = await client.query(
-      `SELECT id::text AS id, exhibit_id::text AS "exhibitId",
-              node_type AS "nodeType", label,
-              x_coordinate AS "xCoordinate", y_coordinate AS "yCoordinate"
-       FROM public.map_nodes
-       WHERE floorplan_id = $1
-       ORDER BY id`,
+      `SELECT node.id::text AS id,
+              node.exhibit_id::text AS "exhibitId",
+              node.node_type AS "nodeType", node.label,
+              node.x_coordinate AS "xCoordinate",
+              node.y_coordinate AS "yCoordinate",
+              (
+                node.archived_at IS NOT NULL
+                OR exhibit.archived_at IS NOT NULL
+              ) AS "isArchived"
+       FROM public.map_nodes AS node
+       LEFT JOIN public.exhibits AS exhibit ON exhibit.id = node.exhibit_id
+       WHERE node.floorplan_id = $1
+       ORDER BY node.id`,
       [session.floorplanId],
     )
     const pathResult = await client.query(
-      `SELECT id::text AS id, from_node_id::text AS "fromNodeId",
-              to_node_id::text AS "toNodeId",
-              estimated_walking_seconds AS "estimatedWalkingSeconds",
-              is_bidirectional AS "isBidirectional"
-       FROM public.walking_paths
-       WHERE floorplan_id = $1
-       ORDER BY id`,
+      `SELECT path.id::text AS id,
+              path.from_node_id::text AS "fromNodeId",
+              path.to_node_id::text AS "toNodeId",
+              path.estimated_walking_seconds AS "estimatedWalkingSeconds",
+              path.is_bidirectional AS "isBidirectional",
+              (
+                path.archived_at IS NOT NULL
+                OR from_node.archived_at IS NOT NULL
+                OR from_exhibit.archived_at IS NOT NULL
+                OR to_node.archived_at IS NOT NULL
+                OR to_exhibit.archived_at IS NOT NULL
+              ) AS "isArchived"
+       FROM public.walking_paths AS path
+       JOIN public.map_nodes AS from_node ON from_node.id = path.from_node_id
+       JOIN public.map_nodes AS to_node ON to_node.id = path.to_node_id
+       LEFT JOIN public.exhibits AS from_exhibit
+         ON from_exhibit.id = from_node.exhibit_id
+       LEFT JOIN public.exhibits AS to_exhibit
+         ON to_exhibit.id = to_node.exhibit_id
+       WHERE path.floorplan_id = $1
+       ORDER BY path.id`,
       [session.floorplanId],
     )
     const route = await getLatestRoute(client, sessionId)

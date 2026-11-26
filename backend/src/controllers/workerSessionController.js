@@ -3,10 +3,16 @@ import {
   listWorkerSessions,
 } from '../services/visitorSessionService.js'
 import { listCategories } from '../services/categoryService.js'
+import { listFloorplans } from '../services/mapService.js'
 
 export async function categories(request, response) {
   const categories = await listCategories(request.user.museumId)
   response.status(200).json({ categories })
+}
+
+export async function floorplans(request, response) {
+  const floorplans = await listFloorplans(request.user.museumId)
+  response.status(200).json({ floorplans })
 }
 
 export async function list(request, response) {

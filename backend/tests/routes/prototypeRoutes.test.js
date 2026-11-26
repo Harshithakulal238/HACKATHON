@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
+import { unlink } from 'node:fs/promises'
 import { after, before, test } from 'node:test'
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import app from '../../src/app.js'
 import { databasePool } from '../../src/config/database.js'
+import { uploadsDirectory } from '../../src/config/storage.js'
 import { registerCurator } from '../../src/services/authService.js'
 
 const email = `prototype-${randomUUID()}@example.test`
 const museumIds = []
+const uploadedFloorplanFiles = []
 let curator
 let worker
 let server
@@ -32,6 +36,28 @@ async function send(path, { token, sessionToken, method = 'GET', body } = {}) {
   return {
     status: response.status,
     body: response.status === 204 ? undefined : await response.json(),
+  }
+}
+
+async function sendFloorplanSvg(
+  url,
+  { token, method = 'PATCH', svg },
+) {
+  const form = new FormData()
+  form.append(
+    'file',
+    new Blob([svg], { type: 'image/svg+xml' }),
+    'replacement.svg',
+  )
+  const headers = token ? { authorization: `Bearer ${token}` } : {}
+  const response = await fetch(`${baseUrl}${url}`, {
+    method,
+    headers,
+    body: form,
+  })
+  return {
+    status: response.status,
+    body: await response.json(),
   }
 }
 
@@ -147,6 +173,15 @@ after(async () => {
     throw error
   } finally {
     client.release()
+    for (const filePath of uploadedFloorplanFiles) {
+      try {
+        await unlink(filePath)
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          throw error
+        }
+      }
+    }
     await databasePool.end()
   }
 })
@@ -282,6 +317,89 @@ test('worker can create a route and visitor actions persist and update analytics
     assert.equal(path.status, 201)
   }
 
+  const mapBeforeReplacement = await send(
+    `/api/maps/floorplans/${floorplanId}`,
+    { token: curator.accessToken },
+  )
+  const replacementSvg = await sendFloorplanSvg(
+    `/api/maps/floorplans/${floorplanId}/svg`,
+    {
+      token: curator.accessToken,
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#eee"/></svg>',
+    },
+  )
+  assert.equal(replacementSvg.status, 200)
+  assert.notEqual(
+    replacementSvg.body.floorplan.svgAssetPath,
+    floorplan.body.floorplan.svgAssetPath,
+  )
+  const replacementFilePath = path.join(
+    uploadsDirectory,
+    'floorplans',
+    path.basename(replacementSvg.body.floorplan.svgAssetPath),
+  )
+  uploadedFloorplanFiles.push(replacementFilePath)
+
+  const replacementFileResponse = await fetch(
+    `${baseUrl}${replacementSvg.body.floorplan.svgAssetPath}`,
+  )
+  assert.equal(replacementFileResponse.status, 200)
+  const mapAfterReplacement = await send(
+    `/api/maps/floorplans/${floorplanId}`,
+    { token: curator.accessToken },
+  )
+  assert.deepEqual(
+    mapAfterReplacement.body.floorplan.nodes.map((node) => node.id),
+    mapBeforeReplacement.body.floorplan.nodes.map((node) => node.id),
+  )
+  assert.deepEqual(
+    mapAfterReplacement.body.floorplan.paths.map((path) => path.id),
+    mapBeforeReplacement.body.floorplan.paths.map((path) => path.id),
+  )
+
+  const rejectedReplacement = await sendFloorplanSvg(
+    `/api/maps/floorplans/${floorplanId}/svg`,
+    {
+      token: curator.accessToken,
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect width="200" height="100" fill="#eee"/></svg>',
+    },
+  )
+  assert.equal(rejectedReplacement.status, 400)
+
+  const incompleteFloorplan = await send('/api/maps/floorplans', {
+    token: curator.accessToken,
+    method: 'POST',
+    body: {
+      name: 'Incomplete Floor',
+      svgAssetPath: '/uploads/floorplans/incomplete.svg',
+      viewBoxWidth: 100,
+      viewBoxHeight: 100,
+    },
+  })
+  assert.equal(incompleteFloorplan.status, 201)
+  for (const nodeType of ['entrance', 'exit']) {
+    const node = await send(
+      `/api/maps/floorplans/${incompleteFloorplan.body.floorplan.id}/nodes`,
+      {
+        token: curator.accessToken,
+        method: 'POST',
+        body: { nodeType, xCoordinate: nodeType === 'entrance' ? 10 : 90, yCoordinate: 50 },
+      },
+    )
+    assert.equal(node.status, 201)
+  }
+
+  const workerFloorplans = await send('/api/worker/sessions/floorplans', {
+    token: worker.accessToken,
+  })
+  assert.equal(workerFloorplans.status, 200)
+  assert.equal(
+    workerFloorplans.body.floorplans.some(
+      (item) => item.id === incompleteFloorplan.body.floorplan.id,
+    ),
+    true,
+  )
+
   const deniedWorkerContent = await send('/api/exhibits', {
     token: worker.accessToken,
   })
@@ -293,12 +411,30 @@ test('worker can create a route and visitor actions persist and update analytics
     body: {
       interests: [category.body.category.id],
       availableMinutes: 5,
+      floorplanId,
     },
   })
   assert.equal(createdTour.status, 201)
   assert.equal(createdTour.body.session.status, 'ready')
   assert.equal(createdTour.body.route.stops[0].exhibitId, exhibit.body.exhibit.id)
   assert.ok(createdTour.body.routeToken)
+
+  const readyTour = await send('/api/worker/sessions', {
+    token: worker.accessToken,
+    method: 'POST',
+    body: {
+      interests: [category.body.category.id],
+      availableMinutes: 5,
+      floorplanId,
+    },
+  })
+  assert.equal(readyTour.status, 201)
+  assert.equal(
+    readyTour.body.route.stops.some(
+      (stop) => stop.exhibitId === exhibit.body.exhibit.id,
+    ),
+    true,
+  )
 
   const started = await send('/api/visitor/sessions/start', {
     method: 'POST',
@@ -323,6 +459,102 @@ test('worker can create a route and visitor actions persist and update analytics
   assert.equal(scanned.status, 200)
   assert.equal(scanned.body.exhibit.descriptionEn, 'English story')
   assert.equal(scanned.body.exhibit.descriptionKn, 'Kannada story')
+
+  const removedExhibit = await send(`/api/exhibits/${exhibit.body.exhibit.id}`, {
+    token: curator.accessToken,
+    method: 'DELETE',
+  })
+  assert.equal(removedExhibit.status, 204)
+
+  const exhibitsAfterRemoval = await send('/api/exhibits', {
+    token: curator.accessToken,
+  })
+  assert.equal(
+    exhibitsAfterRemoval.body.exhibits.some(
+      (item) => item.id === exhibit.body.exhibit.id,
+    ),
+    false,
+  )
+
+  const editedFloorplan = await send(`/api/maps/floorplans/${floorplanId}`, {
+    token: curator.accessToken,
+  })
+  assert.equal(
+    editedFloorplan.body.floorplan.svgAssetPath,
+    replacementSvg.body.floorplan.svgAssetPath,
+  )
+  assert.equal(
+    editedFloorplan.body.floorplan.nodes.some(
+      (node) => node.id === exhibitNode.body.node.id,
+    ),
+    false,
+  )
+  assert.equal(
+    editedFloorplan.body.floorplan.paths.some(
+      (path) =>
+        path.fromNodeId === exhibitNode.body.node.id ||
+        path.toNodeId === exhibitNode.body.node.id,
+    ),
+    false,
+  )
+
+  const visitorMap = await send('/api/visitor/sessions/map', visitorOptions)
+  assert.equal(
+    visitorMap.body.nodes.find((node) => node.id === exhibitNode.body.node.id)
+      .isArchived,
+    true,
+  )
+  assert.equal(
+    visitorMap.body.paths
+      .filter(
+        (path) =>
+          path.fromNodeId === exhibitNode.body.node.id ||
+          path.toNodeId === exhibitNode.body.node.id,
+      )
+      .every((path) => path.isArchived),
+    true,
+  )
+
+  const scannedAfterRemoval = await send('/api/visitor/exhibits/scan', {
+    ...visitorOptions,
+    method: 'POST',
+    body: { code: exhibit.body.exhibit.shortCode },
+  })
+  assert.equal(scannedAfterRemoval.status, 200)
+  assert.equal(scannedAfterRemoval.body.exhibit.descriptionEn, 'English story')
+
+  const replacementPath = await send(
+    `/api/maps/floorplans/${floorplanId}/paths`,
+    {
+      token: curator.accessToken,
+      method: 'POST',
+      body: {
+        fromNodeId: entrance.body.node.id,
+        toNodeId: secondExhibitNode.body.node.id,
+        estimatedWalkingSeconds: 30,
+      },
+    },
+  )
+  assert.equal(replacementPath.status, 201)
+
+  const readyVisitorOptions = { sessionToken: readyTour.body.routeToken }
+  const startedReadyTour = await send('/api/visitor/sessions/start', {
+    method: 'POST',
+    body: { token: readyTour.body.routeToken },
+  })
+  assert.equal(startedReadyTour.status, 200)
+  assert.equal(
+    startedReadyTour.body.route.stops.some(
+      (stop) => stop.exhibitId === exhibit.body.exhibit.id,
+    ),
+    false,
+  )
+  const finishedReadyTour = await send('/api/visitor/sessions/finish', {
+    ...readyVisitorOptions,
+    method: 'POST',
+    body: {},
+  })
+  assert.equal(finishedReadyTour.status, 200)
 
   for (const eventType of ['STORY_OPENED', 'AUDIO_STARTED', 'AUDIO_COMPLETED']) {
     const event = await send('/api/visitor/events', {
@@ -351,17 +583,36 @@ test('worker can create a route and visitor actions persist and update analytics
   )
   assert.equal(completedStop.body.route.stops[1].exhibitId, secondExhibit.body.exhibit.id)
 
-  const unavailable = await send(`/api/exhibits/${secondExhibit.body.exhibit.id}`, {
-    token: curator.accessToken,
-    method: 'PATCH',
-    body: { isAvailable: false },
-  })
-  assert.equal(unavailable.status, 200)
+  const removedPendingExhibit = await send(
+    `/api/exhibits/${secondExhibit.body.exhibit.id}`,
+    {
+      token: curator.accessToken,
+      method: 'DELETE',
+    },
+  )
+  assert.equal(removedPendingExhibit.status, 204)
+
+  const exitReplacementPath = await send(
+    `/api/maps/floorplans/${floorplanId}/paths`,
+    {
+      token: curator.accessToken,
+      method: 'POST',
+      body: {
+        fromNodeId: entrance.body.node.id,
+        toNodeId: exit.body.node.id,
+        estimatedWalkingSeconds: 30,
+      },
+    },
+  )
+  assert.equal(exitReplacementPath.status, 201)
+
   const latestRoute = await send('/api/visitor/sessions/me', visitorOptions)
   assert.equal(latestRoute.status, 200)
   assert.equal(latestRoute.body.route.version, 3)
   assert.equal(
-    latestRoute.body.route.stops.some((stop) => stop.exhibitId === secondExhibit.body.exhibit.id),
+    latestRoute.body.route.stops.some(
+      (stop) => stop.exhibitId === secondExhibit.body.exhibit.id,
+    ),
     false,
   )
 
@@ -395,13 +646,36 @@ test('worker can create a route and visitor actions persist and update analytics
     token: curator.accessToken,
   })
   assert.equal(analytics.status, 200)
-  assert.equal(analytics.body.analytics.totalTours, 1)
-  assert.equal(analytics.body.analytics.completedTours, 1)
+  assert.equal(analytics.body.analytics.totalTours, 2)
+  assert.equal(analytics.body.analytics.completedTours, 2)
   assert.equal(analytics.body.analytics.exhibitScans, 1)
   assert.equal(analytics.body.analytics.audioCompletionRate, 100)
-  assert.equal(analytics.body.analytics.routeChanges, 3)
+  assert.equal(analytics.body.analytics.routeChanges, 4)
   assert.equal(analytics.body.analytics.skippedExhibits, 1)
   assert.equal(analytics.body.analytics.exhibits[0].name, 'Test Exhibit')
   assert.equal(analytics.body.analytics.feedback.averageRating, '5.00')
   assert.equal(analytics.body.analytics.languages[0].language, 'kn')
+
+  const futureTour = await send('/api/worker/sessions', {
+    token: worker.accessToken,
+    method: 'POST',
+    body: {
+      interests: [category.body.category.id],
+      availableMinutes: 5,
+      floorplanId,
+    },
+  })
+  assert.equal(futureTour.status, 201)
+  assert.equal(
+    futureTour.body.route.stops.some(
+      (stop) => stop.exhibitId === exhibit.body.exhibit.id,
+    ),
+    false,
+  )
+  assert.equal(
+    futureTour.body.route.stops.some(
+      (stop) => stop.exhibitId === secondExhibit.body.exhibit.id,
+    ),
+    false,
+  )
 })

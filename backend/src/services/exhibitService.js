@@ -123,7 +123,7 @@ export async function listExhibits(museumId) {
   const result = await databasePool.query(
     `SELECT ${exhibitFields}
      FROM public.exhibits
-     WHERE museum_id = $1
+     WHERE museum_id = $1 AND archived_at IS NULL
      ORDER BY id`,
     [museumId],
   )
@@ -135,7 +135,7 @@ export async function getExhibit(museumId, id) {
   const result = await databasePool.query(
     `SELECT ${exhibitFields}
      FROM public.exhibits
-     WHERE id = $1 AND museum_id = $2`,
+     WHERE id = $1 AND museum_id = $2 AND archived_at IS NULL`,
     [exhibitId, museumId],
   )
 
@@ -207,7 +207,7 @@ export async function updateExhibit(museumId, id, input) {
     `SELECT gallery_id::text AS "galleryId",
             category_id::text AS "categoryId"
      FROM public.exhibits
-     WHERE id = $1 AND museum_id = $2`,
+     WHERE id = $1 AND museum_id = $2 AND archived_at IS NULL`,
     [exhibitId, museumId],
   )
   const existing = existingResult.rows[0]
@@ -236,7 +236,9 @@ export async function updateExhibit(museumId, id, input) {
     const result = await databasePool.query(
       `UPDATE public.exhibits
        SET ${assignments.join(', ')}
-       WHERE id = $${values.length - 1} AND museum_id = $${values.length}
+       WHERE id = $${values.length - 1}
+         AND museum_id = $${values.length}
+         AND archived_at IS NULL
        RETURNING ${exhibitFields}`,
       values,
     )
@@ -251,16 +253,52 @@ export async function updateExhibit(museumId, id, input) {
 
 export async function deleteExhibit(museumId, id) {
   const exhibitId = validateId(id, 'id')
+  const client = await databasePool.connect()
   try {
-    const result = await databasePool.query(
-      'DELETE FROM public.exhibits WHERE id = $1 AND museum_id = $2 RETURNING id',
+    await client.query('BEGIN')
+    const exhibit = await client.query(
+      `SELECT id
+       FROM public.exhibits
+       WHERE id = $1 AND museum_id = $2 AND archived_at IS NULL
+       FOR UPDATE`,
       [exhibitId, museumId],
     )
-    if (!result.rows[0]) {
+    if (!exhibit.rows[0]) {
       throw createHttpError(404, 'Exhibit not found.')
     }
+
+    await client.query(
+      `UPDATE public.exhibits
+       SET is_available = FALSE, archived_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND museum_id = $2`,
+      [exhibitId, museumId],
+    )
+    const nodes = await client.query(
+      `UPDATE public.map_nodes
+       SET archived_at = CURRENT_TIMESTAMP
+       WHERE museum_id = $1 AND exhibit_id = $2 AND archived_at IS NULL
+       RETURNING id`,
+      [museumId, exhibitId],
+    )
+    const nodeIds = nodes.rows.map((node) => node.id)
+    if (nodeIds.length > 0) {
+      await client.query(
+        `UPDATE public.walking_paths
+         SET archived_at = CURRENT_TIMESTAMP
+         WHERE archived_at IS NULL
+           AND (
+             from_node_id = ANY($1::bigint[])
+             OR to_node_id = ANY($1::bigint[])
+           )`,
+        [nodeIds],
+      )
+    }
+    await client.query('COMMIT')
   } catch (error) {
+    await client.query('ROLLBACK')
     rethrowContentConflict(error)
+  } finally {
+    client.release()
   }
 }
 
@@ -290,7 +328,9 @@ export async function updateExhibitMedia(museumId, id, media) {
   const result = await databasePool.query(
     `UPDATE public.exhibits
      SET ${assignments.join(', ')}
-     WHERE id = $${values.length - 1} AND museum_id = $${values.length}
+     WHERE id = $${values.length - 1}
+       AND museum_id = $${values.length}
+       AND archived_at IS NULL
      RETURNING ${exhibitFields}`,
     values,
   )

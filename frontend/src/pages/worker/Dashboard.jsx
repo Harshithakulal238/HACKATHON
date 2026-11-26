@@ -3,14 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import BrandHeader from '../../components/layout/BrandHeader.jsx'
 import QRCodeImage from '../../components/qr/QRCodeImage.jsx'
 import { useAuth } from '../../context/useAuth.js'
-import { createVisitorTour, listTourCategories, listWorkerTours } from '../../services/tourService.js'
+import {
+  createVisitorTour,
+  listTourCategories,
+  listWorkerFloorplans,
+  listWorkerTours,
+} from '../../services/tourService.js'
 import '../PrototypePages.css'
 
 function WorkerDashboard() {
   const { accessToken, signOut, user } = useAuth()
   const navigate = useNavigate()
   const [categories, setCategories] = useState([])
+  const [floorplans, setFloorplans] = useState([])
   const [sessions, setSessions] = useState([])
+  const [selectedFloorplanId, setSelectedFloorplanId] = useState('')
   const [selectedInterests, setSelectedInterests] = useState([])
   const [availableMinutes, setAvailableMinutes] = useState(30)
   const [ticket, setTicket] = useState(null)
@@ -18,11 +25,21 @@ function WorkerDashboard() {
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(async () => {
-    const [categoryResult, sessionResult] = await Promise.all([
+    const [categoryResult, floorplanResult, sessionResult] = await Promise.all([
       listTourCategories(accessToken),
+      listWorkerFloorplans(accessToken),
       listWorkerTours(accessToken),
     ])
     setCategories(categoryResult.categories)
+    setFloorplans(floorplanResult.floorplans)
+    setSelectedFloorplanId((current) => {
+      if (floorplanResult.floorplans.some((floorplan) => floorplan.id === current)) {
+        return current
+      }
+      return floorplanResult.floorplans.length === 1
+        ? floorplanResult.floorplans[0].id
+        : ''
+    })
     setSessions(sessionResult.sessions)
   }, [accessToken])
 
@@ -54,6 +71,7 @@ function WorkerDashboard() {
       const result = await createVisitorTour(accessToken, {
         interests: selectedInterests,
         availableMinutes: Number(availableMinutes),
+        floorplanId: selectedFloorplanId,
       })
       setTicket(result)
       await refresh()
@@ -91,8 +109,28 @@ function WorkerDashboard() {
               <p className="notice notice-warning">
                 The curator needs to add interest categories before tickets can be created.
               </p>
+            ) : floorplans.length === 0 ? (
+              <p className="notice notice-warning">
+                The curator needs to add a floorplan before tickets can be created.
+              </p>
             ) : (
               <form className="workspace-form" onSubmit={createTicket}>
+                <label>
+                  Floorplan
+                  <select
+                    className="workspace-input"
+                    onChange={(event) => setSelectedFloorplanId(event.target.value)}
+                    required
+                    value={selectedFloorplanId}
+                  >
+                    <option value="">Select a floorplan</option>
+                    {floorplans.map((floorplan) => (
+                      <option key={floorplan.id} value={floorplan.id}>
+                        {floorplan.name}{floorplan.floorLabel ? ` — ${floorplan.floorLabel}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <fieldset className="workspace-form">
                   <legend className="workspace-field-label">Choose interests</legend>
                   <div className="interest-options">
@@ -119,7 +157,11 @@ function WorkerDashboard() {
                     value={availableMinutes}
                   />
                 </label>
-                <button className="workspace-button" disabled={busy || selectedInterests.length === 0} type="submit">
+                <button
+                  className="workspace-button"
+                  disabled={busy || !selectedFloorplanId || selectedInterests.length === 0}
+                  type="submit"
+                >
                   {busy ? 'Generating route…' : 'Generate route and ticket'}
                 </button>
               </form>

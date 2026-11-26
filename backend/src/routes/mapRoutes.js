@@ -18,6 +18,12 @@ mapRoutes.post(
   handleUploadError,
   mapController.uploadSvg,
 )
+mapRoutes.patch(
+  '/floorplans/:id/svg',
+  floorplanUpload,
+  handleUploadError,
+  mapController.replaceSvg,
+)
 mapRoutes.get('/floorplans/:id', mapController.getById)
 mapRoutes.post('/floorplans/:floorplanId/nodes', mapController.addNode)
 mapRoutes.patch(

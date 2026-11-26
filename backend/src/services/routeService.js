@@ -2,7 +2,12 @@ import { buildGraph } from '../algorithms/graphBuilder.js'
 import { selectGreedyRoute } from '../algorithms/greedyRouteSelector.js'
 import { createHttpError } from '../utils/httpError.js'
 
-export async function loadFloorplanGraph(client, museumId, floorplanId) {
+export async function loadFloorplanGraph(
+  client,
+  museumId,
+  floorplanId,
+  { includeArchivedAfter = null } = {},
+) {
   const floorplanResult = await client.query(
     `SELECT id::text AS id, name, floor_label AS "floorLabel",
             svg_asset_path AS "svgAssetPath",
@@ -18,8 +23,12 @@ export async function loadFloorplanGraph(client, museumId, floorplanId) {
             x_coordinate AS "xCoordinate", y_coordinate AS "yCoordinate"
      FROM public.map_nodes
      WHERE floorplan_id = $1 AND museum_id = $2
+       AND (
+         archived_at IS NULL
+         OR ($3::timestamptz IS NOT NULL AND archived_at > $3::timestamptz)
+       )
      ORDER BY id`,
-    [floorplanId, museumId],
+    [floorplanId, museumId, includeArchivedAfter],
   )
   const pathResult = await client.query(
     `SELECT from_node_id::text AS "fromNodeId",
@@ -28,8 +37,12 @@ export async function loadFloorplanGraph(client, museumId, floorplanId) {
             is_bidirectional AS "isBidirectional"
      FROM public.walking_paths
      WHERE floorplan_id = $1
+       AND (
+         archived_at IS NULL
+         OR ($2::timestamptz IS NOT NULL AND archived_at > $2::timestamptz)
+       )
      ORDER BY id`,
-    [floorplanId],
+    [floorplanId, includeArchivedAfter],
   )
   const floorplan = floorplanResult.rows[0]
   if (!floorplan) {
@@ -63,6 +76,10 @@ export async function createRouteRevision(
     client,
     session.museumId,
     session.floorplanId,
+    {
+      includeArchivedAfter:
+        session.status === 'active' ? session.createdAt : null,
+    },
   )
   const interestResult = await client.query(
     `SELECT category_id::text AS "categoryId"
@@ -108,7 +125,9 @@ export async function createRouteRevision(
      JOIN public.map_nodes AS node
        ON node.exhibit_id = exhibit.id
       AND node.floorplan_id = $2
+      AND node.archived_at IS NULL
      WHERE exhibit.museum_id = $1
+       AND exhibit.archived_at IS NULL
      ORDER BY exhibit.id`,
     [session.museumId, session.floorplanId],
   )
